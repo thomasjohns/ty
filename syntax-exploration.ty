@@ -1,0 +1,449 @@
+typ A
+
+typ B: A
+
+typ C: D | E
+
+typ F
+    g: G
+    h: H
+
+typ I: 'Literal Type' | 42
+
+typ Nat: {i: Int | i >= 0}
+
+pro Named
+    name: Str
+
+
+typ Robot(Named)
+    name: Str
+    num_greetings: !Int = 0  # mutable Int with default
+
+    fun get_greeting() > Str
+        .num_greetings += 1
+        ret f'Hello, my name is {.name}!'
+
+
+fun main()
+    r = Robot(name='Ty')  # type inference on function return
+    greeting = r.get_greeting()
+    print(greeting)
+
+---
+
+typ Play: X | O | None
+
+typ Coord: {i: Int | 0 <= i <= 2}
+
+typ Board
+    positions: Tuple[
+        Tuple[!Play, !Play, !Play],
+        Tuple[!Play, !Play, !Play],
+        Tuple[!Play, !Play, !Play],
+    ] = (
+        (None, None, None),
+        (None, None, None),
+        (None, None, None),
+    )
+
+    fun move(play: Play, x: Coord, y: Coord) > Success | Error
+        current_play = positions[x][y]
+        pat current_play
+            X
+                ret Error(f'Already placed an X at ({x}, {y})')
+            Y
+                ret Error(f'Already placed a Y at ({x}, {y})')
+            None
+                positions[x][y] = play
+                ret Success
+
+typ GameState: XTurn | OTurn | XWon | OWon | Tie
+
+fun game_state_from_board(board: Board) > GameState
+    ...  # do big pattern match
+
+typ Game
+    player_1: Player
+    player_2: Player
+    board: !Board = Board()
+    state: !GameState = game_state_from_board(board)
+
+    fun turn() > GameState
+        ...  # cli prompt interaction
+        .state = game_state_from_board(.board)
+        ret .state
+
+---
+
+typ Error
+    message: Str
+
+typ Sucesss
+    data: Bytes
+
+typ Response: Success | Error
+
+typ Greeting: 'Hello' | 'Goodbye'
+
+fun get_greeting() > Greeting | Error
+    res: Response = GreetingService.get_greeting()
+    pat res
+        s: Success
+            d: Str = s.data.decode()
+            pat d
+                g: Greeting
+                    ret g
+                *
+                    ret Error('Decoded message was not a Greeting')
+        e: Error
+            ret e
+
+typ Location
+    x: Float
+    y: Float
+
+typ Robot
+    name: Str
+    location: Location
+
+    fun greet() > Str
+        greeting_response = get_greeting()
+        pat greeting_response
+            g: Greeting
+                con g == 'Hello'
+                    print(g.concat(f' my name is {.name}'))
+                oth
+                    print(g)
+            e: Error
+                print('My system is broken')
+
+    fun move(new_location: Location)
+        .location.x = new_location.x
+        .location.y = new_location.y
+
+fun create_robot(name: Str, x: Float, y: Float) > Robot
+    loc = Location(x, y)
+    rob = Robot(name, loc)
+    ret rob
+
+fun robot_within(
+    robot: Robot,
+    distance: Float,
+    location: Location,
+) > Bool
+    ret (
+        (robot.location.x - location.x) ^ 2 +
+        (robot.location.y - location.y) ^ 2
+    ) ^ 0.5 < distance
+
+fun main()
+    robot = create_robot('Ty', 0, 0)
+    robot.move(Location(5, 5))
+    inv robot_within(robot, 100, Location(6, 6))  # invariant statement
+
+---
+
+typ LinkedList[T]
+    value: T
+    next: ?LinkedList[T]
+    prev: ?LinkedList[T]
+
+    fun append(new: LinkedList[T])
+        con .next == None
+            .next = new
+        oth
+            .next.append(new)
+
+    fun prepend(new: LinkedList[T])
+        con .prev == None
+            .prev = new
+        oth
+            .prev.prepend(new)
+
+    fun contains(value: T) > Bool
+        prev_contans: Bool = False
+        next_contans: Bool = False
+        con .value == value
+            ret True
+        con .prev != None
+            prev_contains = .prev.contains(value)
+        con .next != None
+            next_contains = .next.contains(value)
+        ret prev_contains or next_contains
+
+
+typ Head[T]: {l: !LinkedList[T] | l.prev == None}
+
+fun remove_all(value: T, head: Head[T])
+    ...
+
+---
+
+# Protocol says I implement an API
+# Extension gets methods from another Thing - and can be used in place of that Thing
+# Restriction implements a subset of things of something else - the other Thing can
+#     be used in place of this Thing.
+# (Actually not sure if there is a use case for Restriction)
+# [Generic](Protocol)<Extension>{Restriction}
+typ HashMap[K, V](Index)<Hasher>{AllHashmap}
+    ...
+
+# or do what Go does and show implements protocol by implementing protocol (not declaring so)
+typ HashMap[K, V]
+    ...
+
+
+    # can either call m.get-idx(k) or m[k] (get-idx is a built-in magic method)
+    fun get-idx(key: K) > V
+        ...
+
+---
+
+typ KeyWord
+    | 'fun'
+    | 'typ'
+    | 'for'
+    | 'con'
+    | 'oth'
+    | 'inv'
+    | 'lib'
+    ...
+
+typ TokenType
+    | Str
+    | Int
+    | Float
+    | KeyWord
+    ...
+    | ':'
+    | '('
+    | ')'
+    | '{'
+    | '}'
+    | '['
+    | ']'
+    | '+'
+    | '-'
+    | '*'
+    | '^'
+    | '@'
+    | '!'
+    | '?'
+
+    | '='
+    | '=='
+    | '>='
+    ...
+
+typ Token
+    line: Int
+    start_col: Int
+    end_col: Int
+    type: TokenType
+
+typ Tokenizer
+    line: !Int
+    col: !Int
+    char: !Char
+
+    fun eat()
+        ...
+
+    fun tokenize(src: Str) > Array[Token] 
+        ...
+
+---
+
+typ FunArg
+    name: Str
+    type: Type
+
+typ FunDef
+    name: Str
+    args: Array[FunArg]
+    return-type: ?Type
+
+typ ASTNode
+    | RefDefStmt
+    | RefChangeStmt
+    | ConStmt
+    | FunDef
+    | FunArg
+    | FunCall
+    | ...
+
+
+typ DerivedType
+    type: Type
+    kind: Defined | Inferred
+
+
+typ TypeInferer
+    ...
+
+
+typ TypeChecker
+    type-errors: Array[TypeError]
+
+    fun check-node(node: ASTNode)
+        pat node
+            RefDefStmt
+                ...
+            RefChangeStmt
+                ...
+            ConStmt
+                check-node(node.expression)
+            ...
+
+---
+
+mod str
+
+NumBackspaces
+    num: Int
+
+NumSpacesFromBeginning
+    num: Nat
+
+typ Dedent: NumBackspaces | NumSpacesFromBeginning
+
+
+fun apply-dedent(s: Str, d: Dedent) > Str
+    new-str: !Str = ''
+    for line s.lines()
+        pat d
+            b: NumBackspaces
+                dedent-line = ... d.num ...
+            s: NumSpacesFromBeginning
+                dedent-line = ... s.num ...
+        str.append(new-str, dedent-line)  # implement as intrinsic
+    return new-str
+
+
+fun drain(a: Array[T]) > Iter[T]
+    for i, elm a.enum()
+        yld elm
+        a.del-at(i)
+    inv a.len() == 0
+
+
+# dependant types? # or seems to be DependentFunctionType in literature
+SmallerArray[T](n: Nat): {a': Array[T] | a'.len() <= n}
+SmallerIter[T](n : Nat): {i :  Iter[T] |  i.len() <= n}
+
+fun take(a: SmallerArray[T](n), n: Nat) > SmallerIter[T](n)
+    len = a.len()
+    def inv a.len() == len - n
+    for i <= n, elm a.enum()  # loop condition
+        yld elm
+        a.del_at(i)
+
+fun take_while_remaining(a: Array[T], n: Int) > Array[T]
+    taken: Array[T] = []
+    itr a, idx <= min(n, a.len())
+        taken.append(elm)
+    ret taken
+
+fun take_while_remaining(a: Array[T], n: Int) > SizedArray[T, n]
+    taken: SizedArray[T, n] = []
+    itr a, idx <= min(n, a.len())
+        taken.append(elm)
+    ret taken
+
+
+# dependant type 2? (non-function type?)
+x: Int
+y: {y': Int | y' < x}
+
+# intersection type
+pro Readable[Content]
+    fun read() > Iter[Content]
+
+pro Writeable[Content]
+    fun write(content: Seq[Content])
+
+# inference can see that Readable and Writeable both are parametrized
+# by Content so don't need to duplicate that here (Editable[Content])
+pro Editable: Readable & Writeable
+
+
+fun fix-typos(text: Editable[Char]) > Seq[Char]
+    ...
+
+typ Novel[C]
+    fun read() > Iter[C]
+        ...
+    fun write(content: Seq[C])
+        ...
+
+
+novel: Novel = get-novel(...)
+edited-novel = fix-typos(novel)
+
+---
+
+typ List[T]
+    data: T
+    next: ?List[T]
+
+    fun !append(elm: T)  # this allows you to mutate things referenced with .
+        ...
+
+    fun !del-head() > ?T
+        ...
+
+    fun !del-tail() > ?T
+        ...
+
+l: List = List[Int]()
+l.append(5)  # error
+
+l: !List = !List[Int]()
+l.append(5)  # fine
+
+--- itr, idx, elm
+
+fun print_odds(numbers: Array[Int])
+    itr numbers
+        con elm % 2 == 1
+            print(it)
+
+fun get_first_n(number: Array[Int], n: Nat) -> Array[Int]
+    a: Array[Int] = []
+    itr numbers number, idx <= n
+        a.append(number)
+    ret a
+
+---
+
+typ TemplateStr(args: Array[Str])
+
+typ HTTPVerb: Get | Put | Post | Delete
+
+typ APIResource:
+    | ('v2/relatedworktags', Get)
+    | ('v2/relatedworktags/{id: UUID}', Get)
+
+fun handle_request(resource: APIResource)
+    pat resource
+        ('v2/relatedworktags', Get):
+            related_worktags: Array[Worktags] = DB.get_all_related_worktags()
+            related_worktags_json: DynDict = jsonify(related_worktags)
+            ret Response(status_code=200, data=related_worktags_json)
+        ('v2/relatedworktags/{id: UUID}', Get):
+            related_worktag: ?Worktag = DB.get_related_worktags_by_id(id)
+            pat related_worktag
+                Worktag
+                    related_worktag_json: DynDict = jsonify(related_worktag)
+                    ret Response(status_code=200, data=related_worktag_json)
+                None
+                    ret Response(status_code=404, data=None)
+
+---
+# Function overloading
+
+ovr select_all_from(table: LaBomba)     > Array[LaBombaRecord]
+ovr select_all_from(table: ElSabor)     > Array[ElSaborRecord]
+ovr select_all_from(table: ElReconcito) > Array[ElReconcitoRecord]
+fun select_all_from(table: T)           > Array[R]
